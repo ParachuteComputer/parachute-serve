@@ -1,6 +1,6 @@
 # parachute-serve
 
-MCP server that manages a central media directory (`~/media/`) and serves files over Tailscale.
+MCP server that manages a media directory and serves files over Tailscale. Files in the `public/` subdirectory are exposed to the internet via Tailscale Funnel.
 
 ## Build & Run
 
@@ -13,11 +13,11 @@ npm start
 ## Architecture
 
 - Single-file MCP server at `src/index.ts`
-- Uses stdio transport
-- Media files stored in `~/media/`, served via Tailscale serve
-- R2 publish reads config from `~/.media/.env`
+- Uses stdio transport, 4 tools: serve, publish, remove, list
+- `$MEDIA_DIR/` — all served files (tailnet access via `tailscale serve`)
+- `$MEDIA_DIR/public/` — published files (public access via `tailscale funnel`)
 
 ## Environment Variables
 
-- `TAILSCALE_URL` — Base URL for Tailscale serve (e.g. `https://parachute.tail1234.ts.net`)
-- R2 config in `~/.media/.env`: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`
+- `MEDIA_DIR` — Path to media directory (default: `~/media/`)
+- `TAILSCALE_URL` — Base URL for Tailscale (e.g. `https://parachute.taildf9ce2.ts.net`)

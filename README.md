@@ -2,7 +2,7 @@
 
 A lightweight MCP server for managing and serving media files over Tailscale.
 
-Files are copied into `~/media/` and served directly via `tailscale serve`. Optionally publish files to Cloudflare R2 for public access.
+Files are copied into a media directory and served via `tailscale serve`. Published files go into a `public/` subdirectory exposed to the internet via `tailscale funnel`.
 
 ## Setup
 
@@ -14,19 +14,19 @@ npm install
 npm run build
 ```
 
-### 2. Configure Tailscale Serve
-
-Point Tailscale serve at your media directory:
+### 2. Configure Tailscale
 
 ```bash
-tailscale serve --bg /media/ ~/media/
-```
+# Serve all media on your tailnet
+tailscale serve --bg / ~/media/
 
-This serves `~/media/` at `https://<your-machine>.<tailnet>.ts.net/media/`.
+# Expose public/ to the internet
+tailscale funnel --bg /public/
+```
 
 ### 3. Add as MCP Server
 
-Add to your Claude Code settings (`~/.claude/settings.json` or project `.mcp.json`):
+Add to your Claude Code settings (`~/.claude.json`):
 
 ```json
 {
@@ -35,6 +35,7 @@ Add to your Claude Code settings (`~/.claude/settings.json` or project `.mcp.jso
       "command": "node",
       "args": ["/Users/you/Code/parachute-serve/dist/index.js"],
       "env": {
+        "MEDIA_DIR": "/Users/you/media",
         "TAILSCALE_URL": "https://your-machine.tail1234.ts.net"
       }
     }
@@ -42,24 +43,11 @@ Add to your Claude Code settings (`~/.claude/settings.json` or project `.mcp.jso
 }
 ```
 
-### 4. (Optional) Configure R2 Publishing
-
-Create `~/.media/.env`:
-
-```env
-R2_ACCOUNT_ID=your_account_id
-R2_ACCESS_KEY_ID=your_access_key
-R2_SECRET_ACCESS_KEY=your_secret_key
-R2_BUCKET_NAME=your_bucket
-R2_PUBLIC_URL=https://media.yourdomain.com
-```
-
 ## MCP Tools
 
 | Tool | Description |
 |------|-------------|
-| `serve(file_path, name?)` | Copy file to `~/media/` and return its Tailscale URL |
-| `update(file_path, name)` | Overwrite an existing file in `~/media/` |
-| `remove(name)` | Delete a file from `~/media/` |
-| `list(prefix?)` | List files with URLs and sizes |
-| `publish(name)` | Upload a served file to Cloudflare R2 |
+| `serve(file_path, name?)` | Copy file to media dir, return tailnet URL. Overwrites if exists. |
+| `publish(name)` | Copy a served file to `public/` for internet access via Funnel. |
+| `remove(name)` | Delete a file (and its public copy if published). |
+| `list(prefix?)` | List files with URLs, sizes, and published status. |
