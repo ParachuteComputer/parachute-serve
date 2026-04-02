@@ -2,7 +2,7 @@
 
 A lightweight MCP server for managing and serving media files over Tailscale.
 
-Files are copied into a media directory and served via a built-in static HTTP server. Tailscale serve proxies to this server. Published files go into a `public/` subdirectory exposed to the internet via Tailscale Funnel.
+Files are copied into a media directory and served via a built-in static HTTP server. Tailscale serve/funnel proxy to this server. Published files go into a `public/` subdirectory exposed to the internet via Tailscale Funnel.
 
 ## Setup
 
@@ -17,11 +17,11 @@ npm run build
 ### 2. Configure Tailscale
 
 ```bash
-# Proxy /media/ to the built-in static file server (tailnet only)
-tailscale serve --bg --set-path /media/ http://127.0.0.1:8484
+# Proxy all media to the built-in HTTP server (tailnet only)
+tailscale serve --bg http://127.0.0.1:8484
 
-# Expose /media/public/ to the internet via Funnel
-tailscale funnel --bg --set-path /media/public/ http://127.0.0.1:8484
+# Expose /public/ to the internet via Funnel
+tailscale funnel --bg --set-path /public/ http://127.0.0.1:8484
 ```
 
 ### 3. Add as MCP Server
@@ -36,7 +36,7 @@ Add to your Claude Code settings (`~/.claude.json`):
       "args": ["/Users/you/Code/parachute-serve/dist/index.js"],
       "env": {
         "MEDIA_DIR": "/Users/you/media",
-        "TAILSCALE_URL": "https://your-machine.tail1234.ts.net/media"
+        "TAILSCALE_URL": "https://your-machine.tail1234.ts.net"
       }
     }
   }
