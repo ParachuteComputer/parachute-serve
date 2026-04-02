@@ -5,11 +5,35 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import * as fs from "fs/promises";
 import * as path from "path";
+import * as http from "http";
 import { homedir } from "os";
 
 const MEDIA_DIR = process.env.MEDIA_DIR || path.join(homedir(), "media");
 const PUBLIC_DIR = path.join(MEDIA_DIR, "public");
 const TAILSCALE_URL = process.env.TAILSCALE_URL || "";
+const HTTP_PORT = parseInt(process.env.HTTP_PORT || "8484", 10);
+
+const MIME_TYPES: Record<string, string> = {
+  ".html": "text/html",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+  ".mp4": "video/mp4",
+  ".webm": "video/webm",
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav",
+  ".pdf": "application/pdf",
+  ".txt": "text/plain",
+  ".md": "text/markdown",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+};
 
 async function ensureDir(dirPath: string) {
   await fs.mkdir(dirPath, { recursive: true });
@@ -35,13 +59,49 @@ async function isPublished(name: string): Promise<boolean> {
   }
 }
 
-const server = new McpServer({
+// Static file server
+function startHttpServer() {
+  const server = http.createServer(async (req, res) => {
+    const url = new URL(req.url || "/", `http://localhost:${HTTP_PORT}`);
+    const filePath = path.join(MEDIA_DIR, decodeURIComponent(url.pathname));
+
+    // Prevent path traversal
+    if (!filePath.startsWith(MEDIA_DIR)) {
+      res.writeHead(403);
+      res.end("Forbidden");
+      return;
+    }
+
+    try {
+      const stat = await fs.stat(filePath);
+      if (stat.isDirectory()) {
+        res.writeHead(403);
+        res.end("Directory listing not allowed");
+        return;
+      }
+      const ext = path.extname(filePath).toLowerCase();
+      const contentType = MIME_TYPES[ext] || "application/octet-stream";
+      const data = await fs.readFile(filePath);
+      res.writeHead(200, { "Content-Type": contentType, "Content-Length": stat.size });
+      res.end(data);
+    } catch {
+      res.writeHead(404);
+      res.end("Not found");
+    }
+  });
+
+  server.listen(HTTP_PORT, "127.0.0.1", () => {
+    process.stderr.write(`Static file server listening on http://127.0.0.1:${HTTP_PORT}\n`);
+  });
+}
+
+const mcpServer = new McpServer({
   name: "parachute-serve",
   version: "1.0.0",
 });
 
 // serve - copy file to media dir (overwrites if exists)
-server.tool(
+mcpServer.tool(
   "serve",
   "Copy a file to the media directory and serve it over Tailscale. Overwrites if the name already exists.",
   {
@@ -68,7 +128,7 @@ server.tool(
 );
 
 // publish - copy from media dir to public subdir
-server.tool(
+mcpServer.tool(
   "publish",
   "Make a served file publicly accessible via Tailscale Funnel. Copies it to the public/ subdirectory.",
   {
@@ -97,7 +157,7 @@ server.tool(
 );
 
 // remove - delete file from media dir and public dir
-server.tool(
+mcpServer.tool(
   "remove",
   "Delete a file from the media directory (and from public/ if published)",
   {
@@ -133,7 +193,7 @@ server.tool(
 );
 
 // list - list files with published status
-server.tool(
+mcpServer.tool(
   "list",
   "List files in the media directory with URLs, sizes, and published status",
   {
@@ -147,7 +207,7 @@ server.tool(
     async function walk(dir: string, rel: string) {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       for (const entry of entries) {
-        if (entry.name === "public" && rel === "") continue; // skip public/ subdir in listing
+        if (entry.name === "public" && rel === "") continue;
         const entryRel = rel ? `${rel}/${entry.name}` : entry.name;
         if (entry.isDirectory()) {
           await walk(path.join(dir, entry.name), entryRel);
@@ -187,8 +247,9 @@ server.tool(
 async function main() {
   await ensureDir(MEDIA_DIR);
   await ensureDir(PUBLIC_DIR);
+  startHttpServer();
   const transport = new StdioServerTransport();
-  await server.connect(transport);
+  await mcpServer.connect(transport);
 }
 
 main().catch((err) => {
