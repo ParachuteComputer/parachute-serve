@@ -1,53 +1,94 @@
-# parachute-serve
+# tailshare
 
-A lightweight MCP server for managing and serving media files over Tailscale.
+Make local things reachable on your tailnet. Host files and expose dev servers with clean URLs.
 
-Files are copied into a media directory and served via a built-in static HTTP server. Tailscale serve/funnel proxy to this server. Published files go into a `public/` subdirectory exposed to the internet via Tailscale Funnel.
+```
+tailshare serve photo.jpg           → https://parachute.taildf9ce2.ts.net/photo.jpg
+tailshare expose 3000 --name myapp  → https://myapp.taildf9ce2.ts.net
+```
 
-## Setup
+## Prerequisites
 
-### 1. Install & Build
+1. **Tailscale** installed and logged in
+2. **Bun** installed (`curl -fsSL https://bun.sh/install | bash`)
+3. **Tag your node** (one-time, required for `expose`):
+   - Go to [Tailscale Admin → ACLs](https://login.tailscale.com/admin/acls)
+   - Add a tag definition to your ACL policy:
+     ```json
+     "tagOwners": {
+       "tag:server": ["autogroup:admin"]
+     }
+     ```
+   - Go to [Machines](https://login.tailscale.com/admin/machines)
+   - Click your machine → Edit → add `tag:server`
+   - Define your services in [Services](https://login.tailscale.com/admin/services) as needed
+
+## Install
 
 ```bash
-cd ~/Code/parachute-serve
-npm install
-npm run build
+bun install -g github:ParachuteComputer/parachute-serve
+tailshare init
 ```
 
-### 2. Configure Tailscale
+Or clone and link:
 
 ```bash
-# Proxy all media to the built-in HTTP server (tailnet only)
-tailscale serve --bg http://127.0.0.1:8484
-
-# Expose /public/ to the internet via Funnel
-tailscale funnel --bg --set-path /public/ http://127.0.0.1:8484
+git clone https://github.com/ParachuteComputer/parachute-serve.git
+cd parachute-serve
+bun install
+bun link
+tailshare init
 ```
 
-### 3. Add as MCP Server
+`init` does everything: creates config, starts the daemon via launchd, configures tailscale serve, and registers the MCP server in Claude Code.
 
-Add to your Claude Code settings (`~/.claude.json`):
+## Usage
 
-```json
-{
-  "mcpServers": {
-    "parachute-serve": {
-      "command": "node",
-      "args": ["/Users/you/Code/parachute-serve/dist/index.js"],
-      "env": {
-        "MEDIA_DIR": "/Users/you/media",
-        "TAILSCALE_URL": "https://your-machine.tail1234.ts.net"
-      }
-    }
-  }
-}
+### Host files
+
+```bash
+tailshare serve ~/path/to/photo.jpg
+tailshare serve ~/path/to/file.pdf --name docs/spec.pdf
+tailshare list
+tailshare remove photo.jpg
 ```
+
+Files are copied to `~/media/` and served at `https://<node>.<tailnet>.ts.net/<name>`.
+
+### Expose dev servers
+
+```bash
+tailshare expose 3000 --name myapp
+tailshare expose 8080 --name api
+tailshare unexpose myapp
+```
+
+Each gets its own hostname: `https://<name>.<tailnet>.ts.net`. The dev server runs at `/` — no path prefix rewriting.
+
+### Check status
+
+```bash
+tailshare status
+```
+
+Shows tailscale connection, daemon status, served files, and active services.
 
 ## MCP Tools
 
+When used from Claude Code, the same capabilities are available as MCP tools:
+
 | Tool | Description |
 |------|-------------|
-| `serve(file_path, name?)` | Copy file to media dir, return tailnet URL. Overwrites if exists. |
-| `publish(name)` | Copy a served file to `public/` for internet access via Funnel. |
-| `remove(name)` | Delete a file (and its public copy if published). |
-| `list(prefix?)` | List files with URLs, sizes, and published status. |
+| `serve(file_path, name?)` | Copy file to media dir, return tailnet URL |
+| `remove(name)` | Delete a file |
+| `list(prefix?)` | List files with URLs and sizes |
+| `expose(port, name)` | Expose a local port as a tailscale service |
+| `unexpose(name)` | Remove a tailscale service |
+| `status()` | Show everything |
+
+## How it works
+
+- A persistent daemon (managed by launchd) serves files from `~/media/` on port 8484
+- `tailscale serve` proxies your tailnet URL to the daemon
+- Dev server exposure uses Tailscale services — each service gets its own hostname and virtual IP, proxying directly to your local port (no daemon involvement)
+- Config lives at `~/.tailshare/config.json`
