@@ -4,9 +4,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { readConfig, writeConfig } from "./config.ts";
-import { exposeService, unexposeService, getTailscaleStatus, getServeStatus } from "./tailscale.ts";
+import { exposeService, unexposeService, getTailscaleStatus } from "./tailscale.ts";
 import { stat, readdir, copyFile, unlink, mkdir } from "fs/promises";
-import { join, basename } from "path";
+import { join, basename, dirname, resolve } from "path";
 
 const server = new McpServer({
   name: "tailshare",
@@ -31,9 +31,17 @@ server.tool(
   async ({ file_path, name }) => {
     const config = await readConfig();
     const targetName = name || basename(file_path);
-    const targetPath = join(config.mediaDir, targetName);
+    const targetPath = resolve(join(config.mediaDir, targetName));
 
-    await mkdir(join(config.mediaDir, targetName, ".."), { recursive: true });
+    // Prevent path traversal
+    if (!targetPath.startsWith(config.mediaDir + "/")) {
+      return {
+        content: [{ type: "text", text: `Error: invalid name — would write outside media directory.` }],
+        isError: true,
+      };
+    }
+
+    await mkdir(dirname(targetPath), { recursive: true });
     await copyFile(file_path, targetPath);
 
     const fileStat = await stat(targetPath);
@@ -57,7 +65,14 @@ server.tool(
   },
   async ({ name }) => {
     const config = await readConfig();
-    const targetPath = join(config.mediaDir, name);
+    const targetPath = resolve(join(config.mediaDir, name));
+
+    if (!targetPath.startsWith(config.mediaDir + "/")) {
+      return {
+        content: [{ type: "text", text: `Error: invalid name.` }],
+        isError: true,
+      };
+    }
 
     try {
       await unlink(targetPath);

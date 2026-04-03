@@ -34,7 +34,7 @@ export function generatePlist(daemonPath: string, bunPath: string): string {
 }
 
 export async function installAgent(daemonPath: string) {
-  const bunPath = Bun.which("bun") || "/Users/parachute/.bun/bin/bun";
+  const bunPath = Bun.which("bun") || join(homedir(), ".bun", "bin", "bun");
   const plist = generatePlist(daemonPath, bunPath);
   await writeFile(PLIST_PATH, plist);
   await $`launchctl load ${PLIST_PATH}`.quiet();

@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 
 import { readConfig, ensureConfigDir } from "./config.ts";
-import { stat, readFile, readdir, mkdir } from "fs/promises";
-import { join, extname } from "path";
+import { stat, mkdir } from "fs/promises";
+import { join, extname, resolve } from "path";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html",
@@ -47,10 +47,10 @@ async function main() {
     async fetch(req) {
       const url = new URL(req.url);
       const decodedPath = decodeURIComponent(url.pathname);
-      const filePath = join(mediaDir, decodedPath);
+      const filePath = resolve(join(mediaDir, decodedPath));
 
       // Prevent path traversal
-      if (!filePath.startsWith(mediaDir)) {
+      if (!filePath.startsWith(mediaDir + "/") && filePath !== mediaDir) {
         return new Response("Forbidden", { status: 403 });
       }
 

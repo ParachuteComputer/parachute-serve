@@ -1,5 +1,13 @@
 import { $ } from "bun";
 
+const SERVICE_NAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;
+
+export function validateServiceName(name: string) {
+  if (!SERVICE_NAME_RE.test(name) || name.length > 63) {
+    throw new Error(`Invalid service name "${name}" — use lowercase letters, numbers, and hyphens only.`);
+  }
+}
+
 export interface TailscaleStatus {
   nodeName: string;
   tailnetDomain: string;
@@ -33,13 +41,15 @@ export async function setupServe(port: number) {
 }
 
 export async function exposeService(name: string, port: number): Promise<string> {
-  const result = await $`tailscale serve --service=svc:${name} --https=443 http://127.0.0.1:${port}`.quiet();
+  validateServiceName(name);
+  await $`tailscale serve --service=svc:${name} --https=443 http://127.0.0.1:${port}`.quiet();
   // Get the tailnet domain for URL construction
   const status = await getTailscaleStatus();
   return `https://${name}.${status.tailnetDomain}`;
 }
 
 export async function unexposeService(name: string) {
+  validateServiceName(name);
   await $`tailscale serve clear svc:${name}`.quiet();
 }
 

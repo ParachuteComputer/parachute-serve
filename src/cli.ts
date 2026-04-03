@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { readConfig, writeConfig, defaultConfig, ensureConfigDir, CONFIG_DIR, CONFIG_PATH, DEFAULT_MEDIA_DIR, DEFAULT_PORT } from "./config.ts";
+import { readConfig, writeConfig, defaultConfig, ensureConfigDir, CONFIG_DIR, CONFIG_PATH } from "./config.ts";
 import { getTailscaleStatus, setupServe, exposeService, unexposeService } from "./tailscale.ts";
 import { installAgent, uninstallAgent, isAgentLoaded, restartAgent } from "./launchd.ts";
 import { stat, readdir, copyFile, unlink, mkdir } from "fs/promises";
@@ -105,7 +105,7 @@ async function cmdInit() {
     if (!claudeConfig.mcpServers) claudeConfig.mcpServers = {};
 
     const mcpPath = resolve(dirname(import.meta.path), "mcp.ts");
-    const bunPath = Bun.which("bun") || "/Users/parachute/.bun/bin/bun";
+    const bunPath = Bun.which("bun") || join(homedir(), ".bun", "bin", "bun");
     claudeConfig.mcpServers["tailshare"] = {
       command: bunPath,
       args: [mcpPath],
@@ -197,7 +197,12 @@ async function cmdServe() {
   const config = await readConfig();
   const name = getFlag("--name") || basename(filePath);
   const absPath = resolve(filePath);
-  const targetPath = join(config.mediaDir, name);
+  const targetPath = resolve(join(config.mediaDir, name));
+
+  if (!targetPath.startsWith(config.mediaDir + "/")) {
+    console.error("Error: invalid name — would write outside media directory.");
+    process.exit(1);
+  }
 
   await mkdir(dirname(targetPath), { recursive: true });
   await copyFile(absPath, targetPath);
@@ -218,7 +223,12 @@ async function cmdRemove() {
   }
 
   const config = await readConfig();
-  const targetPath = join(config.mediaDir, name);
+  const targetPath = resolve(join(config.mediaDir, name));
+
+  if (!targetPath.startsWith(config.mediaDir + "/")) {
+    console.error("Error: invalid name.");
+    process.exit(1);
+  }
 
   try {
     await unlink(targetPath);

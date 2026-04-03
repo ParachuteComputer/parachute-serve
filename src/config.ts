@@ -6,8 +6,6 @@ export const CONFIG_DIR = join(homedir(), ".tailshare");
 export const CONFIG_PATH = join(CONFIG_DIR, "config.json");
 export const LOG_PATH = join(CONFIG_DIR, "daemon.log");
 export const ERR_PATH = join(CONFIG_DIR, "daemon.err");
-export const PID_PATH = join(CONFIG_DIR, "daemon.pid");
-
 export const DEFAULT_PORT = 8484;
 export const DEFAULT_MEDIA_DIR = join(homedir(), "media");
 
